@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Galaga 3D</title>
+<style>
+  :root { --cyan:#4ff4ff; --yel:#ffe23b; --dim:#8a8fb8; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:#02030a; overflow:hidden; color:#fff; touch-action:none; user-select:none;
+    font-family:'Malgun Gothic', system-ui, sans-serif; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #hudTop, #hudBot { position:fixed; left:50%; transform:translateX(-50%); image-rendering:pixelated; pointer-events:none;
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.35)); }
+  #hudTop { top:10px; } #hudBot { bottom:10px; }
+  #classic { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); image-rendering:pixelated; display:none; background:#000; }
+  #help { position:fixed; left:12px; bottom:12px; font-size:12px; line-height:1.7; color:var(--dim); pointer-events:none; text-shadow:0 0 4px #000; }
+  #help b { color:#cfd3ff; font-weight:600; }
+  #overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    background:rgba(2,3,10,.85); text-align:center; padding:16px; }
+  #overlay h1 { margin:0; font-size:clamp(26px,5vw,48px); letter-spacing:6px; text-shadow:0 0 18px var(--cyan); }
+  #overlay p { margin:0; color:#c9cde8; font-size:14px; line-height:1.7; max-width:560px; }
+  #overlay .err { color:#ff8a8a; }
+  #overlay button { font:inherit; font-size:14px; color:#fff; background:#1b2457; border:1px solid #4a5bd1; border-radius:6px; padding:10px 16px; cursor:pointer; }
+  #overlay button:hover { background:#28358a; }
+  #toast { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); font-size:15px; color:var(--yel); background:rgba(0,0,0,.55);
+    padding:10px 16px; border-radius:6px; pointer-events:none; opacity:0; transition:opacity .3s; text-align:center; }
+  #toast.on { opacity:1; }
+  #touch { position:fixed; inset:auto 0 0 0; height:150px; display:none; pointer-events:none; }
+  #touch button { pointer-events:auto; position:absolute; bottom:18px; width:72px; height:72px; border-radius:50%; border:2px solid rgba(255,255,255,.35);
+    background:rgba(40,60,160,.35); color:#fff; font-size:14px; font-weight:700; touch-action:none; }
+  #tiltBar { position:fixed; top:10px; right:12px; display:flex; gap:4px; z-index:5; }
+  #tiltBar button { font:inherit; font-size:12px; color:#cfd3ff; background:rgba(20,28,80,.55); border:1px solid rgba(90,110,220,.45);
+    border-radius:5px; padding:5px 9px; cursor:pointer; }
+  #tiltBar button.on { color:#fff; background:#2b3aa0; border-color:#7d8cff; }
+  @media (max-width:700px) { #tiltBar { top:auto; bottom:170px; right:8px; flex-direction:column; } }
+  .hide { display:none !important; }
+  @media (pointer:coarse) { #touch { display:block; } #help { display:none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="js/z80.js"></script>
+<script src="js/rom.js"></script>
+<script src="js/galaga.js"></script>
+<script src="js/wsg-remaster.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="hudTop" width="224" height="16"></canvas>
+<canvas id="hudBot" width="224" height="16"></canvas>
+<canvas id="classic" width="224" height="288"></canvas>
+<div id="help"><b>5 / C</b> 코인 · <b>1 / Enter</b> 시작 · <b>← →</b> 이동 · <b>Space / Z</b> 발사<br><b>V</b> 원본 2D ↔ 3D · <b>P</b> 일시정지 · <b>M</b> 소리 · <b>O</b> 원음/리마스터 · <b>T</b> 기울기</div>
+<div id="toast"></div>
+<div id="tiltBar"></div>
+<div id="touch">
+  <button id="tL" style="left:18px">◀</button>
+  <button id="tR" style="left:104px">▶</button>
+  <button id="tCoin" style="right:190px;width:56px;height:56px;bottom:26px">COIN</button>
+  <button id="tStart" style="right:118px;width:56px;height:56px;bottom:26px">START</button>
+  <button id="tFire" style="right:18px;width:88px;height:88px">FIRE</button>
+</div>
+<div id="overlay">
+  <h1>GALAGA 3D</h1>
+  <p id="ovMsg">ROM을 불러오는 중…</p>
+  <button id="romBtn" class="hide">galaga.zip 열기</button>
+  <input id="file" type="file" accept=".zip" class="hide">
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const $ = id => document.getElementById(id);
+let M = null;                 // emulated Galaga board (js/galaga.js)
+let paused = false, view3D = true;
+
+/* =========================================================================
+   AUDIO — WSG + 54XX samples produced by the emulated board, played via AudioWorklet
+   ========================================================================= */
+const AU = { ctx:null, node:null, sent:0, t0:0, on:true, synth:null, fx:null };
+const WORKLET = `
+class P extends AudioWorkletProcessor {
+  constructor() { super(); this.q = []; this.cur = null; this.pos = 0;
+    this.port.onmessage = e => { if (e.data === 'flush') { this.q = []; this.cur = null; } else this.q.push(e.data); }; }
+  process(_, outs) {
+    const l = outs[0][0], r = outs[0][1] || l;
+    for (let i = 0; i < l.length; i++) {
+      if (!this.cur || this.pos >= this.cur[0].length) { this.cur = this.q.shift() || null; this.pos = 0; }
+      if (this.cur) { l[i] = this.cur[0][this.pos]; r[i] = this.cur[1][this.pos]; this.pos++; } else { l[i] = 0; r[i] = 0; }
+    }
+    return true;
+  }
+}
+registerProcessor('wsg-out', P);`;
+// synthetic stereo room impulse (small arcade hall)
+function roomIR(ctx, secs = 1.5) {
+  const n = Math.floor(ctx.sampleRate * secs), ir = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch); let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / ctx.sampleRate, early = (i % 997 === ch * 311) ? 0.6 : 0;
+      lp += 0.35 * ((Math.random() * 2 - 1) - lp);
+      d[i] = (lp + early) * Math.pow(1 - i / n, 2.4) * Math.exp(-t * 2.2);
+    }
+  }
+  return ir;
+}
+async function initAudio() {
+  if (AU.ctx) { if (AU.ctx.state === 'suspended') AU.ctx.resume(); return; }
+  const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+  const ctx = new Ctx({ latencyHint:'interactive' });
+  try {
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type:'application/javascript' })));
+  } catch (e) { console.warn('audio worklet unavailable', e); return; }
+  AU.node = new AudioWorkletNode(ctx, 'wsg-out', { numberOfInputs:0, outputChannelCount:[2] });
+  // remaster chain: low-shelf warmth -> air -> glue compressor -> master, plus a room reverb send
+  const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 160; low.gain.value = 4;
+  const air = ctx.createBiquadFilter(); air.type = 'highshelf'; air.frequency.value = 7000; air.gain.value = 1.5;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.18;
+  const master = ctx.createGain(); master.gain.value = 0.95;
+  const verb = ctx.createConvolver(); verb.buffer = roomIR(ctx);
+  const wet = ctx.createGain(); wet.gain.value = 0.2;
+  AU.node.connect(low).connect(air).connect(comp).connect(master).connect(ctx.destination);
+  comp.connect(verb).connect(wet).connect(master);
+  AU.fx = { low, air, wet, comp };
+  AU.ctx = ctx; AU.t0 = ctx.currentTime; AU.sent = 0;
+  if (M) attachAudio();
+}
+function attachAudio() {
+  M.sampleRate = AU.ctx.sampleRate;
+  AU.synth = new WSGSynth(M.waves, AU.ctx.sampleRate);
+  M.synth = AU.synth;
+  setSoundMode(AU.mode || 'remaster');
+}
+function setSoundMode(mode) {
+  AU.mode = mode;
+  if (AU.synth) AU.synth.mode = mode;
+  if (AU.fx) {
+    const hq = mode === 'remaster', t = AU.ctx.currentTime;
+    AU.fx.low.gain.setTargetAtTime(hq ? 4 : 0, t, 0.05);
+    AU.fx.air.gain.setTargetAtTime(hq ? 1.5 : 0, t, 0.05);
+    AU.fx.wet.gain.setTargetAtTime(hq ? 0.2 : 0, t, 0.05);
+  }
+}
+function flushAudio() {
+  if (!AU.node || !AU.synth) return;
+  const [l, r] = AU.synth.take(); if (!l.length) return;
+  if (!AU.on) { l.fill(0); r.fill(0); }
+  const len = l.length; // read before the buffers are transferred (detached)
+  AU.node.port.postMessage([l, r], [l.buffer, r.buffer]);
+  AU.sent += len;
+}
+function audioAhead() { return AU.sent / AU.ctx.sampleRate - (AU.ctx.currentTime - AU.t0); }
+
+/* =========================================================================
+   THREE.JS SCENE
+   ========================================================================= */
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x02030a);
+scene.fog = new THREE.Fog(0x02030a, 60, 140);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
+scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x140820, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(-8, 30, 18); scene.add(sun);
+const rim = new THREE.DirectionalLight(0x4f7bff, 1.5); rim.position.set(10, 6, -40); scene.add(rim);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.45, 0.78);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// world mapping: arcade display (224 x 288, after the monitor's 90° rotation) -> XZ plane
+const S = 0.1;
+const wx = X => (X - 112) * S, wz = Y => (Y - 144) * S;
+
+// --- board tilt presets. Each preset is a tilt angle; the camera distance and aim are
+// solved so the whole 224x288 playfield fits the window at that angle.
+const TILTS = [
+  { name:'탑뷰', deg:0 },
+  { name:'약하게', deg:20 },
+  { name:'기본', deg:40 },
+  { name:'강하게', deg:55 },
+  { name:'극적', deg:68 },
+];
+let tiltIdx = 2;
+try { const v = +localStorage.getItem('galaga3d-tilt'); if (v >= 0 && v < TILTS.length && localStorage.getItem('galaga3d-tilt') !== null) tiltIdx = v; } catch (e) {}
+const cam = { tilt:0, dist:40, lookZ:0, ready:false };
+const fitCache = {};
+const _p = new THREE.Vector3();
+function placeCamera(tilt, dist, lookZ, swayX = 0) {
+  camera.position.set(swayX, Math.cos(tilt) * dist, lookZ + Math.sin(tilt) * dist);
+  camera.up.set(0, Math.cos(tilt) < 0.999 ? 1 : 0, Math.cos(tilt) < 0.999 ? 0 : -1);
+  camera.lookAt(0, 0, lookZ);
+  camera.updateMatrixWorld();
+}
+function fits(tilt, dist, lookZ) {
+  placeCamera(tilt, dist, lookZ);
+  const HX = 11.7, HZ = 14.8;
+  let top = -9, bot = 9;
+  for (const [x, z] of [[-HX, -HZ], [HX, -HZ], [-HX, HZ], [HX, HZ]]) {
+    _p.set(x, 0, z).project(camera);
+    if (_p.z > 1 || Math.abs(_p.x) > 0.96) return null;
+    top = Math.max(top, _p.y); bot = Math.min(bot, _p.y);
+  }
+  if (top > 0.84 || bot < -0.86) return null;   // keep the HUD rows clear
+  return { top, bot };
+}
+function solveFit(deg) {
+  const key = deg + '_' + camera.aspect.toFixed(3) + '_' + camera.fov;
+  if (fitCache[key]) return fitCache[key];
+  const tilt = Math.max(0.0001, deg * Math.PI / 180);
+  let best = null;
+  for (let lz = -8; lz <= 8; lz += 0.25) {
+    let lo = 5, hi = 300;
+    if (!fits(tilt, hi, lz)) continue;
+    for (let i = 0; i < 28; i++) { const mid = (lo + hi) / 2; if (fits(tilt, mid, lz)) hi = mid; else lo = mid; }
+    const f = fits(tilt, hi, lz);
+    const score = hi + Math.abs(f.top + f.bot) * 2; // closest camera, vertically balanced
+    if (!best || score < best.score) best = { score, tilt, dist:hi, lookZ:lz };
+  }
+  return (fitCache[key] = best || { tilt, dist:45, lookZ:0 });
+}
+function setTilt(i, announce = true) {
+  tiltIdx = (i + TILTS.length) % TILTS.length;
+  try { localStorage.setItem('galaga3d-tilt', tiltIdx); } catch (e) {}
+  document.querySelectorAll('#tiltBar button').forEach((b, k) => b.classList.toggle('on', k === tiltIdx));
+  if (announce) toast(`기울기: ${TILTS[tiltIdx].name} (${TILTS[tiltIdx].deg}°)`);
+}
+function updateCamera(dt) {
+  const target = solveFit(TILTS[tiltIdx].deg);
+  const k = cam.ready ? 1 - Math.exp(-dt * 5) : 1; cam.ready = true;
+  cam.tilt += (target.tilt - cam.tilt) * k; cam.dist += (target.dist - cam.dist) * k; cam.lookZ += (target.lookZ - cam.lookZ) * k;
+  const sway = Math.sin(camT * 0.12) * 1.2 * Math.min(1, cam.tilt / 0.7);
+  placeCamera(cam.tilt, cam.dist, cam.lookZ, sway + (Math.random() - 0.5) * shake);
+  camera.position.y += (Math.random() - 0.5) * shake;
+}
+TILTS.forEach((p, k) => {
+  const b = document.createElement('button'); b.textContent = p.name; b.title = p.deg + '°';
+  b.addEventListener('click', e => { e.stopPropagation(); setTilt(k); });
+  b.addEventListener('pointerdown', e => e.stopPropagation());
+  document.getElementById('tiltBar').appendChild(b);
+});
+
+function layout() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w, h);
+  camera.aspect = w / h;
+  camera.fov = w / h < 0.85 ? Math.min(80, 42 * Math.pow(0.85 / (w / h), 0.8)) : 42;
+  camera.updateProjectionMatrix();
+  // HUD rows sized to the screen
+  const hudW = Math.min(w - 24, h * 0.62, 560);
+  for (const id of ['hudTop', 'hudBot']) { $(id).style.width = hudW + 'px'; $(id).style.height = hudW * 16 / 224 + 'px'; }
+  const k = Math.min(w / 224, h / 288); $('classic').style.width = 224 * k + 'px'; $('classic').style.height = 288 * k + 'px';
+}
+addEventListener('resize', layout); layout();
+
+// --- starfield (enabled/scrolled by the board's star-control latch)
+const STAR_N = 1600, starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(STAR_N * 3), starCol = new Float32Array(STAR_N * 3), starSpd = new Float32Array(STAR_N);
+const starPal = [0xffffff, 0xff4040, 0x40ff80, 0x4f8bff, 0xffe23b, 0xff60ff, 0x60ffff].map(h => new THREE.Color(h));
+for (let i = 0; i < STAR_N; i++) {
+  starPos[i*3] = (Math.random() - 0.5) * 140; starPos[i*3+1] = -4 - Math.random() * 45; starPos[i*3+2] = -130 + Math.random() * 170;
+  const c = starPal[(Math.random() * starPal.length) | 0]; starCol.set([c.r, c.g, c.b], i * 3); starSpd[i] = 0.5 + Math.random();
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size:0.4, vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+scene.add(stars);
+const grid = new THREE.GridHelper(260, 65, 0x5a2bd6, 0x231255);
+grid.position.y = -16; grid.material.transparent = true; grid.material.opacity = 0.5; scene.add(grid);
+// cabinet-width rails
+const railMat = new THREE.MeshBasicMaterial({ color:0x3b5bff, transparent:true, opacity:0.35, toneMapped:false });
+for (const X of [-2, 226]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 30), railMat); r.position.set(wx(X), -0.5, 0); scene.add(r); }
+
+// --- tilemap plane (characters: messages, tractor beam, score table…)
+const TS = 4; // texture pixels per arcade pixel
+const tileCanvas = document.createElement('canvas'); tileCanvas.width = 224 * TS; tileCanvas.height = 288 * TS;
+const tctx = tileCanvas.getContext('2d'); tctx.imageSmoothingEnabled = false;
+const tileTex = new THREE.CanvasTexture(tileCanvas); tileTex.magFilter = THREE.LinearFilter; tileTex.colorSpace = THREE.SRGBColorSpace;
+const tilePlane = new THREE.Mesh(new THREE.PlaneGeometry(224 * S, 288 * S),
+  new THREE.MeshBasicMaterial({ map:tileTex, transparent:true, depthWrite:false, toneMapped:false }));
+tilePlane.rotation.x = -Math.PI / 2; tilePlane.position.y = 0.6; scene.add(tilePlane);
+
+// --- voxel builder
+const VOX = S; // one arcade pixel = one voxel
+const BOX = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
+function voxelGeo(img) { // img: 256 entries (16x16, display orientation) of 0xRRGGBB or -1
+  const has = (x, y) => x >= 0 && x < 16 && y >= 0 && y < 16 && img[y * 16 + x] >= 0;
+  const pos = [], nor = [], col = [], c = new THREE.Color();
+  const bp = BOX.attributes.position.array, bn = BOX.attributes.normal.array;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (!has(x, y)) continue;
+    const n4 = has(x-1,y) + has(x+1,y) + has(x,y-1) + has(x,y+1);
+    const n8 = n4 + has(x-1,y-1) + has(x+1,y-1) + has(x-1,y+1) + has(x+1,y+1);
+    const h = VOX * (n8 === 8 ? 3.2 : n4 === 4 ? 2.2 : 1.1);
+    c.setHex(img[y * 16 + x]);
+    for (let i = 0; i < bp.length; i += 3) {
+      pos.push(bp[i] * VOX * 0.96 + (x - 7.5) * VOX, bp[i+1] * h, bp[i+2] * VOX * 0.96 + (y - 7.5) * VOX);
+      nor.push(bn[i], bn[i+1], bn[i+2]);
+      const s = bn[i+1] > 0.5 ? 1 : bn[i+1] < -0.5 ? 0.35 : 0.72;
+      col.push(c.r * s, c.g * s, c.b * s);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeBoundingSphere();
+  g.userData.colors = [...new Set(img.filter(v => v >= 0))].map(h => new THREE.Color(h));
+  return g;
+}
+function voxMat(glow) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.38, metalness:0.3 });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uGlow = { value:glow };
+    sh.fragmentShader = 'uniform float uGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * uGlow;');
+  };
+  return m;
+}
+const MAT = voxMat(0.2), MAT_HOT = voxMat(1.4);
+
+/* =========================================================================
+   SPRITE RAM -> 3D
+   ========================================================================= */
+const sprPix = {};            // decoded sprite code -> 16x16 pen indices (native orientation)
+const geoCache = new Map();
+function pix(code) { return sprPix[code] || (sprPix[code] = M.decodeSprite(code)); }
+// image in display orientation (monitor is rotated 90° clockwise), with native flips applied
+function dispImage(code, color, flipx, flipy) {
+  const p = pix(code), out = new Array(256);
+  for (let ny = 0; ny < 16; ny++) for (let nx = 0; nx < 16; nx++) {
+    const v = p[(flipy ? 15 - ny : ny) * 16 + (flipx ? 15 - nx : nx)];
+    out[nx * 16 + (15 - ny)] = v ? M.sprColor(color, v) : -1;
+  }
+  return out;
+}
+function getGeo(key, build) { let g = geoCache.get(key); if (!g) { g = voxelGeo(build()); geoCache.set(key, g); } return g; }
+
+// Sprite groups of 8 that the arcade uses as pre-rendered rotation frames (0..6 = 90°..0°)
+function rotGroup(code) { const g = code >> 3; return g <= 3 || (g >= 10 && g <= 15 && (code & 7) < 7); }
+
+const POOL = [];
+for (let i = 0; i < 256; i++) {
+  const m = new THREE.Mesh(undefined, MAT); m.rotation.order = 'YXZ'; m.visible = false; m.frustumCulled = false;
+  scene.add(m); POOL.push(m);
+}
+const slotState = Array.from({ length:64 }, () => ({ heading:0, bank:0, key:'', rot:false, seen:false, x:0, z:0, geo:null, hot:0 }));
+const _v = new THREE.Vector3();
+function angLerp(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
+
+function updateSprites(dt) {
+  let used = 0;
+  const offs = [[0, 1], [2, 3]];
+  for (const s of M.sprites()) {
+    const st = slotState[s.idx];
+    let any = false;
+    for (let yy = 0; yy <= s.sizey; yy++) for (let xx = 0; xx <= s.sizex; xx++) {
+      const code = s.code + offs[yy ^ (s.sizey * s.flipy)][xx ^ (s.sizex * s.flipx)];
+      const nx = s.sx + 16 * xx, ny = s.sy + 16 * yy;
+      const X = 224 - (ny + 8), Y = nx + 8;          // sprite centre in display space
+      if (X < -16 || X > 240 || Y < -16 || Y > 300) continue;
+      const m = POOL[used++]; if (!m) continue;
+      m.visible = true; m.position.set(wx(X), 0, wz(Y));
+      if (!s.sizex && !s.sizey && rotGroup(code)) {
+        // 3D model: the upright frame, rotated to the heading encoded by frame + flips
+        const f = code & 7, model = f >= 6 ? code : (code & ~7) + 6;
+        const th = f >= 6 ? 0 : (6 - f) * Math.PI / 12;
+        let dx = -Math.sin(th), dy = -Math.cos(th);
+        if (s.flipy) dx = -dx;
+        if (s.flipx) dy = -dy;
+        const target = Math.atan2(-dx, -dy);
+        const key = 'm' + model + '_' + s.color;
+        m.geometry = getGeo(key, () => dispImage(model, s.color, 0, 0));
+        if (!st.rot || !st.seen) { st.heading = target; st.bank = 0; }
+        const prev = st.heading;
+        st.heading = angLerp(st.heading, target, 1 - Math.exp(-dt * 22));
+        let turn = st.heading - prev; while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
+        st.bank += (Math.max(-0.8, Math.min(0.8, -turn / Math.max(dt, 1e-3) * 0.09)) - st.bank) * Math.min(1, dt * 8);
+        m.rotation.set(0, st.heading, st.bank);
+        st.rot = true; st.geo = m.geometry; st.key = key;
+        m.material = MAT;
+      } else {
+        // raw voxelised sprite (explosions, scores, tractor-beam captured ship effects…)
+        const key = 'r' + code + '_' + s.color + '_' + s.flipx + s.flipy;
+        m.geometry = getGeo(key, () => dispImage(code, s.color, s.flipx, s.flipy));
+        m.rotation.set(0, 0, 0);
+        if (st.rot && st.seen && st.geo) burst(m.position, st.geo.userData.colors, 50); // something just blew up
+        st.rot = false; st.key = key;
+        m.material = MAT_HOT;
+      }
+      any = true;
+    }
+    st.seen = any;
+    if (!any) st.rot = false;
+  }
+  for (let i = used; i < POOL.length; i++) POOL[i].visible = false;
+}
+
+// --- voxel debris
+const DEB_N = 2000;
+const debris = new THREE.InstancedMesh(new THREE.BoxGeometry(VOX, VOX, VOX), new THREE.MeshBasicMaterial({ toneMapped:false }), DEB_N);
+debris.frustumCulled = false; scene.add(debris);
+const DEB = Array.from({ length:DEB_N }, () => ({ life:0, max:1, p:new THREE.Vector3(), v:new THREE.Vector3(), r:new THREE.Euler(), rv:new THREE.Vector3() }));
+let debIdx = 0;
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color();
+for (let i = 0; i < DEB_N; i++) { debris.setColorAt(i, _c.set(0xffffff)); _m.makeScale(0, 0, 0); debris.setMatrixAt(i, _m); }
+function burst(pos, colors, n) {
+  if (!colors || !colors.length) return;
+  for (let k = 0; k < n; k++) {
+    const i = debIdx, d = DEB[i]; debIdx = (debIdx + 1) % DEB_N;
+    d.life = d.max = 0.5 + Math.random() * 0.7;
+    d.p.copy(pos).add(_s.set((Math.random() - .5) * 1.2, (Math.random() - .5) * 0.5, (Math.random() - .5) * 1.2));
+    d.v.set(Math.random() - .5, Math.random() * 0.8, Math.random() - .5).normalize().multiplyScalar(4 + Math.random() * 7);
+    d.r.set(Math.random() * 6, Math.random() * 6, 0); d.rv.set((Math.random() - .5) * 14, (Math.random() - .5) * 14, 0);
+    debris.setColorAt(i, _c.copy(colors[(Math.random() * colors.length) | 0]).multiplyScalar(1.5));
+  }
+  debris.instanceColor.needsUpdate = true;
+}
+function updateDebris(dt) {
+  for (let i = 0; i < DEB_N; i++) {
+    const d = DEB[i]; if (d.life <= 0) continue;
+    d.life -= dt; d.p.addScaledVector(d.v, dt); d.v.multiplyScalar(1 - 2 * dt); d.v.y -= 6 * dt;
+    d.r.x += d.rv.x * dt; d.r.y += d.rv.y * dt;
+    const k = d.life > 0 ? Math.min(1, d.life / d.max * 2) : 0;
+    _m.compose(d.p, _q.setFromEuler(d.r), _s.set(k, k, k)); debris.setMatrixAt(i, _m);
+  }
+  debris.instanceMatrix.needsUpdate = true;
+}
+
+/* =========================================================================
+   TILEMAP -> plane texture + HUD rows
+   ========================================================================= */
+const charImg = {};   // `${code}_${color}` -> canvas 8x8
+function charCanvas(code, color) {
+  const k = code + '_' + color; if (charImg[k]) return charImg[k];
+  const p = M.decodeChar(code), cv = document.createElement('canvas'); cv.width = cv.height = 8;
+  const x = cv.getContext('2d'), id = x.createImageData(8, 8);
+  for (let i = 0; i < 64; i++) {
+    const rgb = M.charColor(color, p[i]); if (rgb < 0) continue;
+    id.data[i*4] = rgb >> 16; id.data[i*4+1] = (rgb >> 8) & 255; id.data[i*4+2] = rgb & 255; id.data[i*4+3] = 255;
+  }
+  x.putImageData(id, 0, 0);
+  // rotate into display orientation
+  const r = document.createElement('canvas'); r.width = r.height = 8; const rx = r.getContext('2d');
+  rx.setTransform(0, 1, -1, 0, 8, 0); rx.drawImage(cv, 0, 0);
+  return (charImg[k] = r);
+}
+const tileShadow = new Int32Array(36 * 28).fill(-1);
+const hudCtx = [$('hudTop').getContext('2d'), $('hudBot').getContext('2d')];
+function updateTiles() {
+  let dirty = false;
+  for (let col = 0; col < 36; col++) for (let row = 0; row < 28; row++) {
+    const t = M.tileAt(col, row), v = (t.code << 8) | t.color, i = col * 28 + row;
+    if (tileShadow[i] === v) continue;
+    tileShadow[i] = v;
+    // native (col,row) -> display: display row = col, display column = 27 - row
+    const dr = col, dc = 27 - row, img = charCanvas(t.code, t.color);
+    if (dr < 2 || dr >= 34) {
+      const x = hudCtx[dr < 2 ? 0 : 1], yy = (dr < 2 ? dr : dr - 34) * 8;
+      x.clearRect(dc * 8, yy, 8, 8); x.drawImage(img, dc * 8, yy);
+    } else {
+      tctx.clearRect(dc * 8 * TS, dr * 8 * TS, 8 * TS, 8 * TS);
+      tctx.drawImage(img, dc * 8 * TS, dr * 8 * TS, 8 * TS, 8 * TS);
+      dirty = true;
+    }
+  }
+  if (dirty) tileTex.needsUpdate = true;
+}
+
+// --- volumetric tractor beam. The arcade draws the beam with characters 0x4E-0x7E;
+// the 3D cone is fitted to the extent of those tiles every frame, so size and timing are original.
+const beamTex = (() => {
+  const cv = document.createElement('canvas'); cv.width = 16; cv.height = 128; const x = cv.getContext('2d');
+  const cols = ['#4f8bff', '#ffffff', '#b03bff', '#3bd8ff'];
+  for (let i = 0; i < 16; i++) { x.fillStyle = cols[i % 4]; x.fillRect(0, i * 8, 16, 4); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 4); return t;
+})();
+const beamGeo = new THREE.CylinderGeometry(0.3, 1, 1, 40, 1, true); beamGeo.rotateX(-Math.PI / 2);
+const beamMesh = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ map:beamTex, transparent:true, opacity:0.3,
+  blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, toneMapped:false }));
+const beamCore = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color:0x9fd8ff, transparent:true, opacity:0.07,
+  blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false }));
+beamMesh.visible = beamCore.visible = false; scene.add(beamMesh, beamCore);
+function updateBeam(dt, booting) {
+  let x0 = 99, x1 = -1, y0 = 99, y1 = -1, count = 0;
+  for (let col = 2; col < 34; col++) for (let row = 0; row < 28; row++) {
+    const c = M.tileAt(col, row).code;
+    if (c < 0x4e || c > 0x7e) continue;
+    const dr = col, dc = 27 - row;
+    if (dc < x0) x0 = dc; if (dc > x1) x1 = dc; if (dr < y0) y0 = dr; if (dr > y1) y1 = dr;
+    count++;
+  }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  // a real beam is at most ~6 tiles wide and fills its box; anything else is not a beam
+  const on = !booting && count >= 2 && w <= 8 && h <= 16 && count >= w * h * 0.35;
+  beamMesh.visible = beamCore.visible = on;
+  if (!on) return;
+  const X0 = x0 * 8, X1 = (x1 + 1) * 8, Y0 = y0 * 8 - 4, Y1 = (y1 + 1) * 8;
+  const r = (X1 - X0) * 0.5 * S, len = (Y1 - Y0) * S;
+  for (const m of [beamMesh, beamCore]) {
+    m.position.set(wx((X0 + X1) / 2), 1.2, wz((Y0 + Y1) / 2));
+    m.scale.set(r, r * 0.4, len);
+  }
+  beamCore.scale.x *= 0.55; beamCore.scale.y *= 0.55;
+  beamTex.offset.y -= dt * 3;
+  beamMesh.material.opacity = 0.24 + 0.06 * Math.sin(performance.now() / 60);
+}
+
+/* =========================================================================
+   CLASSIC 2D VIEW (reference renderer of the arcade video hardware)
+   ========================================================================= */
+const ccv = $('classic'), cctx = ccv.getContext('2d');
+const natCv = document.createElement('canvas'); natCv.width = 288; natCv.height = 224;
+const natCtx = natCv.getContext('2d'), natImg = natCtx.createImageData(288, 224);
+const charPix = {};
+function drawClassic() {
+  const d = natImg.data; d.fill(0); for (let i = 3; i < d.length; i += 4) d[i] = 255;
+  const put = (x, y, rgb) => { if (x < 0 || y < 0 || x >= 288 || y >= 224 || rgb < 0) return; const i = (y * 288 + x) * 4; d[i] = rgb >> 16; d[i+1] = (rgb >> 8) & 255; d[i+2] = rgb & 255; };
+  const offs = [[0, 1], [2, 3]];
+  for (const s of M.sprites()) for (let y = 0; y <= s.sizey; y++) for (let x = 0; x <= s.sizex; x++) {
+    const p = pix(s.code + offs[y ^ (s.sizey * s.flipy)][x ^ (s.sizex * s.flipx)]);
+    for (let py = 0; py < 16; py++) for (let qx = 0; qx < 16; qx++) {
+      const v = p[(s.flipy ? 15 - py : py) * 16 + (s.flipx ? 15 - qx : qx)];
+      if (v) put(s.sx + 16 * x + qx, s.sy + 16 * y + py, M.sprColor(s.color, v));
+    }
+  }
+  for (let row = 0; row < 28; row++) for (let col = 0; col < 36; col++) {
+    const t = M.tileAt(col, row), p = charPix[t.code] || (charPix[t.code] = M.decodeChar(t.code));
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) put(col * 8 + x, row * 8 + y, M.charColor(t.color, p[y * 8 + x]));
+  }
+  natCtx.putImageData(natImg, 0, 0);
+  cctx.setTransform(0, 1, -1, 0, 224, 0); cctx.drawImage(natCv, 0, 0); cctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* =========================================================================
+   MAIN LOOP
+   ========================================================================= */
+const STAR_SPEEDS = [-1, -2, -3, 0, 3, 2, 1, 0];
+let last = performance.now(), acc = 0, camT = 0, pumpLast = performance.now(), shake = 0;
+// Emulation pump: runs on its own timer (independent of rAF throttling).
+// With audio, the board is kept ~90 ms ahead of the audio clock so sound never starves;
+// without audio it follows wall-clock time at the arcade's 60.6 Hz.
+function pump() {
+  const now = performance.now(), dt = Math.min(0.25, (now - pumpLast) / 1000); pumpLast = now;
+  if (!M || paused) return;
+  let n = 0;
+  if (!booted()) { // power-on RAM/ROM test + crosshatch: run it at high speed, silently
+    for (let i = 0; i < 60 && !booted(); i++) M.runFrame();
+    if (AU.synth) AU.synth.clear();
+    return;
+  }
+  if (AU.node && AU.ctx.state === 'running' && AU.synth) {
+    if (audioAhead() < -0.03) { AU.node.port.postMessage('flush'); AU.t0 = AU.ctx.currentTime; AU.sent = 0; }
+    while (audioAhead() < 0.09 && n < 12) { M.runFrame(); releasePending(); flushAudio(); n++; }
+    acc = 0;
+  } else {
+    acc += dt;
+    while (acc >= 1 / Galaga.FRAME_HZ && n < 12) { acc -= 1 / Galaga.FRAME_HZ; M.runFrame(); releasePending(); if (AU.synth) AU.synth.clear(); n++; }
+    if (n === 12) acc = 0;
+  }
+}
+// boot is over once the sub CPUs run and the game switches the starfield on (attract mode)
+function booted() { return M.booted || (M.booted = M.subRunning && (!!M.starLatch[5] || M.frame > 1100)); }
+setInterval(pump, 5);
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  if (!M) { composer.render(); return; }
+  if (view3D) {
+    const booting = !booted();
+    tilePlane.visible = !booting;
+    if (booting) POOL.forEach(m => { m.visible = false; }); else { updateSprites(dt); updateTiles(); }
+    updateBeam(dt, booting); updateDebris(dt);
+    // stars follow the board's star latch (enable + scroll speed)
+    const L = M.starLatch, on = L[5] & 1, sp = STAR_SPEEDS[(L[0] & 1) + (L[1] & 1) * 2 + (L[2] & 1) * 4];
+    stars.visible = !!on;
+    if (!paused) {
+      for (let i = 0; i < STAR_N; i++) { starPos[i*3+2] += sp * 5 * starSpd[i] * dt; if (starPos[i*3+2] > 40) starPos[i*3+2] -= 170; else if (starPos[i*3+2] < -130) starPos[i*3+2] += 170; }
+      starGeo.attributes.position.needsUpdate = true;
+      grid.position.z = ((grid.position.z + sp * 2.5 * dt) % 4 + 4) % 4;
+      camT += dt;
+    }
+    stars.material.opacity = 0.65 + 0.35 * Math.sin(now / 90);
+    shake = Math.max(0, shake - dt * 1.4);
+    updateCamera(dt);
+    composer.render();
+  } else {
+    drawClassic();
+  }
+}
+requestAnimationFrame(frame);
+setTilt(tiltIdx, false);
+
+/* =========================================================================
+   INPUT  (active-low bits on the board's IN0 / IN1 ports)
+   ========================================================================= */
+const KEYMAP = {
+  Digit5:[0, 0x10], KeyC:[0, 0x10], Digit6:[0, 0x20],
+  Digit1:[0, 0x04], Enter:[0, 0x04], Digit2:[0, 0x08],
+  Space:[0, 0x01], KeyZ:[0, 0x01], ControlLeft:[0, 0x01],
+  ArrowLeft:[1, 0x08], KeyA:[1, 0x08], ArrowRight:[1, 0x02], KeyD:[1, 0x02],
+};
+// Every press is held for at least 3 emulated frames, so very short taps are still
+// seen by the 51XX input chip (it samples once per frame).
+const pressedAt = {}, pendingUp = new Set();
+function press(port, bit, down) {
+  if (!M) return;
+  const k = port ? 'in1' : 'in0', id = k + bit;
+  if (down) { M[k] &= ~bit; pressedAt[id] = M.frame; pendingUp.delete(id); }
+  else if (M.frame - (pressedAt[id] ?? -99) >= 3) M[k] |= bit;
+  else pendingUp.add(id);
+}
+function releasePending() {
+  for (const id of pendingUp) {
+    if (M.frame - pressedAt[id] < 3) continue;
+    const k = id.slice(0, 3), bit = +id.slice(3);
+    M[k] |= bit; pendingUp.delete(id);
+  }
+}
+let toastT = 0;
+function toast(t, ms = 1600) { $('toast').innerHTML = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), ms); }
+addEventListener('keydown', e => {
+  initAudio();
+  const k = KEYMAP[e.code];
+  if (k) { e.preventDefault(); if (!e.repeat) press(k[0], k[1], true); }
+  if (e.repeat) return;
+  if (e.code === 'KeyP') { paused = !paused; toast(paused ? 'PAUSED' : '', paused ? 1e9 : 10); }
+  if (e.code === 'KeyM') { AU.on = !AU.on; toast(AU.on ? '소리 켜짐' : '소리 꺼짐'); }
+  if (e.code === 'KeyO') { setSoundMode(AU.mode === 'original' ? 'remaster' : 'original'); toast(AU.mode === 'remaster' ? '사운드: 리마스터 (고품질)' : '사운드: 원본 기판 그대로'); }
+  if (e.code === 'KeyT') setTilt(tiltIdx + (e.shiftKey ? -1 : 1));
+  if (e.code === 'KeyV') {
+    view3D = !view3D; $('classic').style.display = view3D ? 'none' : 'block';
+    for (const id of ['hudTop', 'hudBot', 'c']) $(id).style.visibility = view3D ? 'visible' : 'hidden';
+    toast(view3D ? '3D 모드' : '원본 2D 모드');
+  }
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) press(k[0], k[1], false); });
+addEventListener('blur', () => { if (M) { M.in0 = 0xff; M.in1 = 0xff; } });
+addEventListener('pointerdown', () => initAudio());
+const TOUCH = { tL:[1, 0x08], tR:[1, 0x02], tFire:[0, 0x01], tCoin:[0, 0x10], tStart:[0, 0x04] };
+for (const [id, [p, b]] of Object.entries(TOUCH)) {
+  const el = $(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); el.setPointerCapture(e.pointerId); press(p, b, true); });
+  for (const ev of ['pointerup', 'pointercancel']) el.addEventListener(ev, () => press(p, b, false));
+}
+
+/* =========================================================================
+   ROM LOADING
+   ========================================================================= */
+async function boot(buf, name) {
+  try {
+    const files = await unzipRom(buf);
+    M = new Galaga(files);
+    window.M = M;
+    M.on54 = v => { if (v === 0x10) shake = 0.9; }; // the ship's explosion command
+    if (AU.ctx) attachAudio();
+    geoCache.clear(); tileShadow.fill(-1);
+    $('overlay').classList.add('hide');
+    toast(`${name} 로드 완료<br><small>5 또는 C로 코인, 1 또는 Enter로 시작<br>첫 키 입력 때 사운드가 켜집니다</small>`, 3500);
+  } catch (err) {
+    console.error(err);
+    $('ovMsg').innerHTML = `<span class="err">${err.message}</span><br>MAME galaga 세트(galaga.zip)를 열어 주세요.`;
+    $('romBtn').classList.remove('hide');
+  }
+}
+$('romBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', async e => { const f = e.target.files[0]; if (f) { initAudio(); boot(await f.arrayBuffer(), f.name); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', async e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { initAudio(); boot(await f.arrayBuffer(), f.name); } });
+(async () => {
+  if (location.protocol.startsWith('http')) {
+    try { const r = await fetch('rom/galaga.zip'); if (r.ok) return boot(await r.arrayBuffer(), 'galaga.zip'); } catch (e) {}
+  }
+  $('ovMsg').innerHTML = 'MAME <b>galaga.zip</b> 롬 세트가 필요합니다.<br>파일을 이 화면에 끌어다 놓거나 아래 버튼으로 여세요.';
+  $('romBtn').classList.remove('hide');
+})();
+window.__dbg = { slotState, POOL, geoCache, camera, AU, audioAhead };
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Never commit arcade ROM images or ROM-derived files
+*.zip
+rom/
+*.rom
+*.bin
+
+# Local artifacts
+__pycache__/
+*.pyc
+.DS_Store
