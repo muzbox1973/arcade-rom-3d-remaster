@@ -19,6 +19,21 @@ Developer **GPT PARK** · [YouTube](https://www.youtube.com/@AIFACT-GPTPARK) · 
 
 ---
 
+## Screenshots
+
+The **same frozen frame** of a real game (a Boss Galaga's tractor beam capturing the fighter),
+shown in the original 2D view and in 3D at three board-tilt presets:
+
+| Original 2D (`V`) | 3D · tilt 20° (약하게) |
+|---|---|
+| ![Original 2D view](docs/screenshots/01-original-2d.png) | ![3D, 20 degree tilt](docs/screenshots/02-3d-tilt-20.png) |
+| **3D · tilt 40° (기본, default)** | **3D · tilt 68° (극적)** |
+| ![3D, 40 degree tilt](docs/screenshots/03-3d-tilt-40.png) | ![3D, 68 degree tilt](docs/screenshots/04-3d-tilt-68.png) |
+
+<sub>Galaga © Bandai Namco Entertainment Inc. Screenshots were captured from the program running
+on the author's own ROM set and are shown only to document what the skill produces. The game's
+graphics are not part of this repository's license, and no ROM data is included.</sub>
+
 ## Why emulate instead of re-creating?
 
 A hand-made look-alike always plays slightly differently, and players notice. Running the real
@@ -143,7 +158,8 @@ Default controls of generated remasters:
 ## License
 
 [MIT](LICENSE) © 2026 muzbox (GPT PARK). The license covers the code and documents in this
-repository only; it grants no rights to any game, ROM, trademark or artwork.
+repository only; it grants no rights to any game, ROM, trademark or artwork
+(including the game graphics visible in the screenshots).
 
 ---
 

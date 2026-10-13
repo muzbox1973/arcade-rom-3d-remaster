@@ -322,7 +322,7 @@ function voxelGeo(img) { // img: 256 entries (16x16, display orientation) of 0xR
   return g;
 }
 function voxMat(glow) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.38, metalness:0.3 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.62, metalness:0.12 }); // matte: no specular blow-out at low camera angles
   m.onBeforeCompile = sh => {
     sh.uniforms.uGlow = { value:glow };
     sh.fragmentShader = 'uniform float uGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
