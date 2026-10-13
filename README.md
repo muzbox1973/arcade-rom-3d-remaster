@@ -73,6 +73,8 @@ scripts/
   rom_inspect.py                 list a ROM zip (size, CRC32) and guess the game/board
   gfx_sheet.py                   decode graphics ROMs with a MAME-style layout into a PNG sheet
 assets/galaga-reference/         complete working example (Galaga): index.html + js/ (no ROM data)
+docs/screenshots/                README images (not covered by the MIT license)
+THIRD_PARTY_NOTICES.md           MAME (BSD-3-Clause), three.js, screenshot/trademark notices
 ```
 
 The reference implementation contains a verified Z80 core, a ZIP reader, the Galaga board
@@ -145,9 +147,11 @@ Default controls of generated remasters:
 
 - This project is an independent, non-commercial tool. It is **not affiliated with, endorsed by,
   or sponsored by** Bandai Namco Entertainment, any other game publisher, Anthropic, or the MAME team.
-- Hardware behaviour is documented with reference to the [MAME](https://www.mamedev.org/)
-  project's driver sources; the code in this repository is an independent implementation.
-  Thanks to the MAME developers for decades of preservation work.
+- Hardware behaviour follows the [MAME](https://www.mamedev.org/) project's driver sources.
+  The code here is an independent implementation, but its logic closely follows several
+  BSD-3-Clause MAME files, whose copyright notices and license are retained in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). MAME® is a registered trademark of
+  Gregory Ember. Thanks to the MAME developers for decades of preservation work.
 - The software is provided **"as is", without warranty of any kind** (see [LICENSE](LICENSE)).
   You are solely responsible for how you obtain and use ROM images and for complying with
   copyright, trademark and other laws that apply to you. The author accepts no liability for any
@@ -157,7 +161,8 @@ Default controls of generated remasters:
 
 ## License
 
-[MIT](LICENSE) © 2026 muzbox (GPT PARK). The license covers the code and documents in this
+[MIT](LICENSE) © 2026 muzbox (GPT PARK), except the third-party material listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The license covers the code and documents in this
 repository only; it grants no rights to any game, ROM, trademark or artwork
 (including the game graphics visible in the screenshots).
 

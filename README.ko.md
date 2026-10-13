@@ -71,6 +71,8 @@ scripts/
   rom_inspect.py                 롬 zip 목록(크기, CRC32)과 게임·기판 추정
   gfx_sheet.py                   MAME 방식 레이아웃으로 그래픽 롬을 PNG 시트로 출력
 assets/galaga-reference/         완성된 예제(갤러가): index.html + js/ (롬 데이터 없음)
+docs/screenshots/                README용 이미지 (MIT 라이선스 적용 대상 아님)
+THIRD_PARTY_NOTICES.md           MAME(BSD-3-Clause), three.js, 스크린샷·상표 고지
 ```
 
 참고 구현에는 검증된 Z80 CPU 코어, ZIP 리더, 갤러가 기판(Z80 3개, Namco 06XX/51XX/54XX 재현,
@@ -137,8 +139,10 @@ Windows에서는 `%USERPROFILE%\.claude\skills\arcade-rom-3d-remaster` 폴더입
 
 - 이 프로젝트는 독립적인 비상업 도구입니다. Bandai Namco Entertainment를 비롯한 어떤 게임 회사, Anthropic,
   MAME 팀과도 **제휴·보증·후원 관계가 없습니다.**
-- 하드웨어 동작은 [MAME](https://www.mamedev.org/) 프로젝트의 드라이버 소스를 참고해 정리했으며,
-  이 저장소의 코드는 독자적으로 작성한 구현입니다. 수십 년간 보존 작업을 이어 온 MAME 개발자들께 감사드립니다.
+- 하드웨어 동작은 [MAME](https://www.mamedev.org/) 프로젝트의 드라이버 소스를 따랐습니다. 코드는 독자적으로
+  작성했지만 그 동작이 BSD-3-Clause로 공개된 MAME 파일 몇 개를 가깝게 따르므로, 해당 저작권 표시와 라이선스 전문을
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 남겨 두었습니다. MAME®은 Gregory Ember의 등록 상표입니다.
+  수십 년간 보존 작업을 이어 온 MAME 개발자들께 감사드립니다.
 - 이 소프트웨어는 **어떠한 보증도 없이 "있는 그대로"** 제공됩니다([LICENSE](LICENSE) 참고). 롬 이미지를
   어떻게 구하고 사용하는지, 그리고 저작권·상표권 등 적용되는 법을 지키는 책임은 전적으로 사용자에게 있습니다.
   이 스킬이나 이 스킬로 만든 결과물의 사용 또는 오용으로 생긴 어떠한 손해, 법적 분쟁, 손실에 대해서도
@@ -147,7 +151,8 @@ Windows에서는 `%USERPROFILE%\.claude\skills\arcade-rom-3d-remaster` 폴더입
 
 ## 라이선스
 
-[MIT](LICENSE) © 2026 muzbox (GPT PARK). 이 라이선스는 이 저장소의 코드와 문서에만 적용되며,
+[MIT](LICENSE) © 2026 muzbox (GPT PARK). 단, [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 적은
+제3자 자료는 각자의 조건을 따릅니다. 이 라이선스는 이 저장소의 코드와 문서에만 적용되며,
 어떤 게임, 롬, 상표, 그림(스크린샷에 보이는 게임 그래픽 포함)에 대한 권리도 부여하지 않습니다.
 
 ---

@@ -1,6 +1,10 @@
 /* Galaga (Namco 1981) board emulation: 3x Z80 sharing RAM, Namco 06XX/51XX/54XX
    custom I/O (high-level), Namco WSG 3-voice sound, video RAM decoding.
-   The original program ROMs run unmodified. Classic script: defines global `Galaga`. */
+   The original program ROMs run unmodified. Classic script: defines global `Galaga`.
+   Hardware behaviour follows MAME's src/mame/namco/galaga.cpp (Nicola Salmoria),
+   namco06.cpp / namco51.cpp (Mike Harris, Aaron Giles) and src/devices/sound/namco.cpp
+   (Nicola Salmoria, Aaron Giles), all BSD-3-Clause. Independent implementation - see
+   THIRD_PARTY_NOTICES.md for the retained notices. */
 (function (global) {
   'use strict';
 

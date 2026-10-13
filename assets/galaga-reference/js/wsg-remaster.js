@@ -4,7 +4,10 @@
    - 'remaster': band-limited (alias-free) versions of the PROM waveforms, de-clicked
      volume changes, gentle ensemble doubling + stereo placement, layered 54XX explosions
    - 'original': the stepped 32-sample hardware waveform, mono, like the cabinet
-   Classic script: defines global `WSGSynth`. */
+   Classic script: defines global `WSGSynth`.
+   WSG register layout and frequency scaling follow MAME's src/devices/sound/namco.cpp
+   (BSD-3-Clause, Nicola Salmoria, Aaron Giles); the remaster synthesis is original.
+   See THIRD_PARTY_NOTICES.md. */
 (function (global) {
   'use strict';
   const TBL = 2048, WSG_HZ = 96000;

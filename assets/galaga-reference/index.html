@@ -521,6 +521,8 @@ function updateBeam(dt, booting) {
 
 /* =========================================================================
    CLASSIC 2D VIEW (reference renderer of the arcade video hardware)
+   Sprite order and coordinates follow MAME's src/mame/namco/galaga.cpp
+   (BSD-3-Clause, Nicola Salmoria) - see THIRD_PARTY_NOTICES.md
    ========================================================================= */
 const ccv = $('classic'), cctx = ccv.getContext('2d');
 const natCv = document.createElement('canvas'); natCv.width = 288; natCv.height = 224;
