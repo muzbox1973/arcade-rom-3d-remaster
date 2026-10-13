@@ -99,8 +99,9 @@ Windows에서는 `%USERPROFILE%\.claude\skills\arcade-rom-3d-remaster` 폴더입
 - "이 고전 MAME 롬파일을 3D 기술을 활용하여 리뉴얼해"
 - "Here is my `pacman.zip` — remaster it in 3D but keep the gameplay identical."
 
-결과물은 `index.html`, `js/`, `rom/<세트>.zip`(본인 파일, 공유 금지), `start.bat`이 든 폴더입니다.
-`start.bat`(또는 `python -m http.server`)을 실행하고 페이지를 엽니다.
+결과물은 `index.html`, `js/`, `rom/<세트>.zip`(본인 파일, 공유 금지), `serve.py`, `start.bat` / `start.sh`가
+든 폴더입니다. `start.bat`(Windows) 또는 `start.sh`(macOS/Linux)를 실행하면 그 게임 전용 로컬 포트로
+서버를 띄우고 브라우저를 엽니다. 여러 리마스터를 동시에 실행해도 다른 게임이 열리지 않습니다.
 
 생성되는 리마스터의 기본 조작키:
 

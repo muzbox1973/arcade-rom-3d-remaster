@@ -83,10 +83,19 @@ etc.), each compared with the 2D view of the same paused frame.
   Hold every press for ≥3 emulated frames. Add touch buttons for coarse pointers.
 - Overlay: ROM prompt (button + drag-and-drop) when no ROM; toast after load explaining coin,
   start and "first key enables sound".
-- `start.bat` / `.claude/launch.json` serving the folder with `python -m http.server`.
+- Serving: copy `assets/galaga-reference/serve.py` + `start.bat` + `start.sh` and set `GAME_ID`
+  (MAME set name) and `TITLE` in `serve.py`. Do **not** use `python -m http.server`: on Windows it
+  lets a second server silently share a port, so the browser keeps showing the *previous*
+  remaster. `serve.py` derives a per-game default port, binds exclusively, moves to the next
+  free port, disables caching and opens the URL it actually got. Point `.claude/launch.json`
+  at `serve.py --port <that game's default> --no-browser`.
+- Identity: put the game name in `<title>`, the overlay and the `serve.py` console line, and
+  prefix every `localStorage` key with `GAME_ID` (`STORE('tilt')`), so two remasters never
+  share settings and the user can see at a glance which game is open.
 - Live check with real key events in the browser: coin → credit 1 → start → shots fired;
   emulated fps ≈ arcade frame rate vs wall clock and audio clock; no console errors; `file://`
-  open shows the ROM prompt.
+  open shows the ROM prompt; with another remaster's server already running, `start.bat`
+  still opens *this* game (check the URL port and the page title).
 
 ### 7. Report to the user (in their language)
 Lead with how to run it. Then: what is original (all game logic and timing, which sound parts),
@@ -103,7 +112,9 @@ what is 3D, what is approximated and why, what was verified with which evidence,
   js/<board>.js         board emulation for this game (adapt from galaga.js)
   js/<chip>-remaster.js sound synth (adapt from wsg-remaster.js)
   rom/<set>.zip         user's ROM (not distributed)
-  start.bat, .claude/launch.json
+  serve.py              per-game launcher (exclusive port, no-cache, opens browser)
+  start.bat, start.sh   double-click launchers that run serve.py
+  .claude/launch.json   preview config pointing at serve.py
 ```
 Keep JS as classic scripts (globals) and only Three.js as an ES module via importmap
 (`three@0.160.0` from jsdelivr), so the page also opens from `file://` with a dropped ROM.

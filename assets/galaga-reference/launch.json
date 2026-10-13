@@ -4,8 +4,8 @@
     {
       "name": "galaga3d",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1"],
-      "port": 8765
+      "runtimeArgs": ["serve.py", "--port", "8454", "--no-browser"],
+      "port": 8454
     }
   ]
 }

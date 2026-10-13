@@ -1,5 +1,7 @@
 @echo off
-rem Serves this folder so index.html can auto-load rom\galaga.zip
+rem Serves this folder on a free localhost port (exclusive bind, see serve.py) and opens the browser.
 cd /d "%~dp0"
-start "" http://127.0.0.1:8765/
-python -m http.server 8765 --bind 127.0.0.1
+where python >nul 2>nul && (python serve.py & goto :eof)
+where py >nul 2>nul && (py serve.py & goto :eof)
+echo Python 3 is required: https://www.python.org/downloads/
+pause

@@ -104,7 +104,9 @@ Put your ROM zip somewhere Claude can read it and ask, for example:
 - "이 고전 MAME 롬파일을 3D 기술을 활용하여 리뉴얼해"
 
 The result is a folder with `index.html`, `js/`, `rom/<set>.zip` (your file, not to be
-shared) and `start.bat`. Run `start.bat` (or `python -m http.server`) and open the page.
+shared), `serve.py` and `start.bat` / `start.sh`. Run `start.bat` (Windows) or `start.sh`
+(macOS/Linux): it serves the folder on a free local port reserved for that game and opens the
+browser. Several remasters can run side by side without opening the wrong game.
 
 Default controls of generated remasters:
 

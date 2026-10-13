@@ -13,6 +13,7 @@
 | Giant glowing cone over the whole screen at start | Boot garbage tiles matched the beam tile codes | Require a compact dense cluster; fast-forward boot; hide tile plane while booting |
 | White crosshatch grid glowing at start | The original post-test crosshatch pattern | Extend "booting" until the game enables the starfield |
 | Shell edit refused ("Remove-Item on system path") | A JS snippet containing `rm` inside a PowerShell here-string tripped a safety parser | Do multi-line source edits with a small Python patch script or the Edit tool |
+| A new remaster opens the **previous** game | `python -m http.server` enables address reuse; on Windows a second server binds the same port silently and the old one keeps answering (reproduced: two processes LISTENING on one port, browser got the old page) | Launch via `serve.py`: per-game default port, exclusive bind (`SO_EXCLUSIVEADDRUSE`, no reuse), next free port, no-cache headers; game name in title and console; `localStorage` keys prefixed with `GAME_ID` |
 | Audio silent in a numeric test | Test started before boot finished, so no sound writes happened | Re-run with a proper boot wait; check `soundRegs` are non-zero |
 
 General rule: when something looks wrong, measure board state (PCs, latches, frame counter,

@@ -78,6 +78,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const $ = id => document.getElementById(id);
+const GAME_ID = 'galaga';            // MAME set name: prefixes saved settings so remasters never share them
+const STORE = k => `${GAME_ID}-3d-${k}`;
 let M = null;                 // emulated Galaga board (js/galaga.js)
 let paused = false, view3D = true;
 
@@ -195,7 +197,7 @@ const TILTS = [
   { name:'극적', deg:68 },
 ];
 let tiltIdx = 2;
-try { const v = +localStorage.getItem('galaga3d-tilt'); if (v >= 0 && v < TILTS.length && localStorage.getItem('galaga3d-tilt') !== null) tiltIdx = v; } catch (e) {}
+try { const v = +localStorage.getItem(STORE('tilt')); if (v >= 0 && v < TILTS.length && localStorage.getItem(STORE('tilt')) !== null) tiltIdx = v; } catch (e) {}
 const cam = { tilt:0, dist:40, lookZ:0, ready:false };
 const fitCache = {};
 const _p = new THREE.Vector3();
@@ -234,7 +236,7 @@ function solveFit(deg) {
 }
 function setTilt(i, announce = true) {
   tiltIdx = (i + TILTS.length) % TILTS.length;
-  try { localStorage.setItem('galaga3d-tilt', tiltIdx); } catch (e) {}
+  try { localStorage.setItem(STORE('tilt'), tiltIdx); } catch (e) {}
   document.querySelectorAll('#tiltBar button').forEach((b, k) => b.classList.toggle('on', k === tiltIdx));
   if (announce) toast(`기울기: ${TILTS[tiltIdx].name} (${TILTS[tiltIdx].deg}°)`);
 }
