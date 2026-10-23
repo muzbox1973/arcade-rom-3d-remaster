@@ -19,6 +19,10 @@ Developer **GPT PARK** · [YouTube](https://www.youtube.com/@AIFACT-GPTPARK) · 
 
 ---
 
+
+https://github.com/user-attachments/assets/8f7dbfcd-7ad5-44bf-9308-54838938fc1e
+
+
 ## Screenshots
 
 The **same frozen frame** of a real game (a Boss Galaga's tractor beam capturing the fighter),
